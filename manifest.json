@@ -1,0 +1,31 @@
+{
+    "manifest_version": 3,
+    "name": "HD Yakishi Cehennemi",
+    "version": "2.0",
+    "description": "Herhangi bir sitedeki videoyu arkadaşlarınla senkronize izle. Chat, reaksiyonlar, çizim ve daha fazlası.",
+    "permissions": ["activeTab", "storage"],
+    "host_permissions": ["<all_urls>"],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": "simgecik.png"
+    },
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["socket.io.min.js", "content.js", "panel.js"],
+            "run_at": "document_idle"
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": ["simgecik.png", "panel.css"],
+            "matches": ["<all_urls>"]
+        }
+    ],
+    "icons": {
+        "128": "simgecik.png"
+    }
+}

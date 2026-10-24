@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+        body {
+            width: 320px;
+            background: linear-gradient(135deg, #050505 0%, #1f1016 100%);
+            color: #e0e0e0;
+            padding: 24px 20px;
+            min-height: 200px;
+        }
+
+        .logo {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: #ff80bf;
+            text-align: center;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            text-shadow: 0 0 20px rgba(255, 128, 191, 0.3);
+            line-height: 1.3;
+            letter-spacing: 0.5px;
+        }
+
+        .logo-emoji { font-size: 1.5rem; display: block; margin-bottom: 6px; }
+
+        .input-field {
+            width: 100%;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: white;
+            border-radius: 10px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .input-field:focus {
+            border-color: rgba(255, 128, 191, 0.4);
+            box-shadow: 0 0 0 3px rgba(255, 128, 191, 0.08);
+        }
+
+        .input-field::placeholder { color: #555; }
+
+        .input-field.error {
+            border-color: #ff0040;
+            animation: shake 0.3s ease;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
+
+        .btn {
+            width: 100%;
+            padding: 13px;
+            background: linear-gradient(135deg, #ff80bf, #ff0040);
+            border: none;
+            color: #fff;
+            font-weight: 700;
+            border-radius: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            letter-spacing: 0.3px;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 18px rgba(255, 128, 191, 0.35);
+        }
+
+        .btn:active { transform: translateY(0); }
+
+        .btn-disconnect {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            margin-top: 10px;
+        }
+
+        .btn-disconnect:hover {
+            background: rgba(255, 0, 64, 0.15);
+            border-color: rgba(255, 0, 64, 0.3);
+            box-shadow: 0 4px 15px rgba(255, 0, 64, 0.15);
+        }
+
+        .status-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .status-dot.online {
+            background: #4CAF50;
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+        }
+
+        .status-dot.offline { background: #555; }
+
+        .connected-panel { display: none; }
+
+        .info-text {
+            font-size: 10px;
+            color: #555;
+            text-align: center;
+            margin-top: 12px;
+            line-height: 1.4;
+        }
+
+        .connected-info {
+            font-size: 11px;
+            color: #888;
+            text-align: center;
+            margin-top: 8px;
+            line-height: 1.4;
+        }
+
+        .shortcut-hint {
+            font-size: 10px;
+            color: #444;
+            text-align: center;
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+        }
+
+        .shortcut-hint kbd {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 10px;
+            color: #999;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="logo">
+        <span class="logo-emoji">🔥</span>
+        HD Yakishi<br>Cehennemi
+    </div>
+
+    <div id="setup-panel">
+        <input type="text" id="username" class="input-field" placeholder="İsminiz?" maxlength="15" autocomplete="off">
+        <input type="text" id="roomname" class="input-field" placeholder="Oda Adı" value="Yakishi" autocomplete="off">
+        <button class="btn" id="join-btn">Bağlan</button>
+        <div class="info-text">Odaya bağlanınca sayfadaki video otomatik<br>senkronize edilir ve chat paneli açılır.</div>
+    </div>
+
+    <div id="connected-panel" class="connected-panel">
+        <div class="status-box">
+            <span class="status-dot online" id="status-dot"></span>
+            <span id="status-text">Bağlı</span>
+        </div>
+        <div class="connected-info">Chat paneli sayfanın sağ alt köşesinde açık.</div>
+        <div class="shortcut-hint">
+            Kısayollar: <kbd>Alt+Space</kbd> Oynat/Durdur &nbsp; <kbd>Alt+←→</kbd> 5sn
+        </div>
+        <button class="btn btn-disconnect" id="disconnect-btn">Bağlantıyı Kes</button>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
