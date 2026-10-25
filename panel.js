@@ -227,12 +227,13 @@
         });
 
         events.addEventListener('disconnected', function () {
+            var wasConnected = isConnected;
             isConnected = false;
             fab.classList.remove('connected');
             statusDot.classList.remove('online');
             statusText.textContent = 'Bağlantı koptu...';
 
-            if (isConnected) {
+            if (wasConnected) {
                 showNotification('Sistem', 'Bağlantı kesildi!');
             }
         });
@@ -261,7 +262,7 @@
             e.detail.users.forEach(function (user) {
                 var tag = document.createElement('span');
                 tag.className = 'user-tag';
-                tag.textContent = user;
+                tag.textContent = typeof user === 'string' ? user : user.name;
                 userList.appendChild(tag);
             });
         });
