@@ -9,13 +9,8 @@ A Chrome extension (Manifest V3) that turns the video player on almost any site 
 ![Socket.IO](https://img.shields.io/badge/Socket.IO%20client-010101?style=flat-square&logo=socketdotio&logoColor=white)
 ![Shadow DOM](https://img.shields.io/badge/Shadow%20DOM-555555?style=flat-square)
 
-<!-- DEMO-BASLANGIC  (video eklerken bu satırı ve aşağıdaki DEMO-BITIS satırını sil)
-## ▶ Demo
 
-VIDEO_LINKI_BURAYA
-
-*Real recording of two Chrome windows with the extension on a sample video page: joining from the popup, syncing the site's own player, Alt + → seeking, chat, reactions and the different-page warning. Demo film: [Big Buck Bunny](https://peach.blender.org/) (CC BY 3.0, © Blender Foundation).*
-DEMO-BITIS -->
+https://github.com/user-attachments/assets/4f645f5f-648e-46f2-8e66-505eb8315d2e
 
 ---
 
