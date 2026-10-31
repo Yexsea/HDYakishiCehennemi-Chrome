@@ -1,9 +1,16 @@
-// ╔══════════════════════════════════════════════════════════════╗
-// ║  HD Yakishi Cehennemi — Floating Panel UI (Shadow DOM)     ║
-// ║  Chat, video kontrolleri, reaksiyonlar, bildirimler        ║
-// ╚══════════════════════════════════════════════════════════════╝
+// �"�"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"
+// �"  HD Yakishi Cehennemi � Floating Panel UI (Shadow DOM)     �"
+// �"  Chat, video kontrolleri, reaksiyonlar, bildirimler        �"
+// �"a�"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
 (function () {
     'use strict';
+
+    // Sadece en üst pencerede çalı�xsın (iframe'lerde chat panelini gösterme)
+    try {
+        if (window.self !== window.top) return;
+    } catch (e) {
+        return; // Cross-origin hatası verirse iframe içindeyiz demektir
+    }
 
     // yakishi API'sini bekle
     var checkInterval = setInterval(function () {
@@ -20,9 +27,9 @@
         var yakishi = window.yakishi;
         var events = yakishi.events;
 
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         //  SVG ICONS (Material Design)
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         var ICONS = {
             play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
             pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>',
@@ -36,9 +43,9 @@
             minimize: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h12v2H6z"/></svg>'
         };
 
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         //  SHADOW DOM HOST
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         var host = document.createElement('div');
         host.id = 'yakishi-extension-host';
         host.setAttribute('style',
@@ -46,6 +53,7 @@
             'bottom: 0 !important; right: 0 !important; width: 0 !important; height: 0 !important;' +
             'overflow: visible !important; pointer-events: none !important;'
         );
+        host.style.setProperty('display', window.yakishi.isPowerOn ? 'block' : 'none', 'important');
         document.documentElement.appendChild(host);
 
         var shadow = host.attachShadow({ mode: 'closed' });
@@ -56,9 +64,9 @@
         cssLink.href = chrome.runtime.getURL('panel.css');
         shadow.appendChild(cssLink);
 
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         //  DOM YAPISI
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         var root = document.createElement('div');
         root.className = 'yakishi-root';
         root.innerHTML = buildPanelHTML();
@@ -98,16 +106,76 @@
         var unreadCount = 0;
         var notifTimeout = null;
 
-        // Başlangıçta gizli
+        // Ba�xlangıçta gizli
         fab.style.display = 'none';
         panel.classList.add('hidden');
 
         // pointer-events: root elementine tıklanabilirlik ver
         root.style.pointerEvents = 'auto';
 
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
+        //  FULLSCREEN SUPPORT & PICTURE-IN-PICTURE
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
+        let pipWindow = null;
+        
+        async function openPiP() {
+            if (!('documentPictureInPicture' in window)) {
+                console.warn('Yakishi: Tarayıcınız Document PiP desteklemiyor.');
+                return;
+            }
+            try {
+                if (pipWindow) return; // Zaten açık
+                
+                // Chrome uzantılarında host do�xrudan ta�xınabilir
+                pipWindow = await window.documentPictureInPicture.requestWindow({
+                    width: 360,
+                    height: 540
+                });
+                
+                // PiP penceresinin body'sine karanlık arka plan uygula
+                pipWindow.document.body.style.margin = '0';
+                pipWindow.document.body.style.padding = '0';
+                pipWindow.document.body.style.background = '#0a0a0a';
+                
+                // Host'u PiP penceresine ta�xı
+                root.classList.add('pip-mode');
+                pipWindow.document.body.appendChild(host);
+                
+                pipWindow.addEventListener('pagehide', function () {
+                    pipWindow = null;
+                    root.classList.remove('pip-mode');
+                    var fs = document.fullscreenElement || document.webkitFullscreenElement;
+                    if (fs && fs.tagName !== 'IFRAME') {
+                        fs.appendChild(host);
+                    } else {
+                        document.documentElement.appendChild(host);
+                    }
+                });
+            } catch (e) {
+                console.error('Yakishi PiP Hatası:', e);
+            }
+        }
+
+        document.addEventListener('fullscreenchange', function () {
+            var fsElement = document.fullscreenElement || document.webkitFullscreenElement;
+            if (fsElement) {
+                if (fsElement.tagName !== 'IFRAME') {
+                    fsElement.appendChild(host);
+                } else {
+                    openPiP().catch(e => console.log('Otomatik PiP reddedildi, kullanıcı butona basmalı.'));
+                }
+            } else {
+                if (pipWindow) {
+                    pipWindow.close();
+                    pipWindow = null;
+                }
+                document.documentElement.appendChild(host);
+            }
+        });
+
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         //  FAB CLICK
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         fab.addEventListener('click', function (e) {
             e.stopPropagation();
             isPanelOpen = !isPanelOpen;
@@ -125,9 +193,9 @@
             }
         });
 
-        // ═══════════════════════════════════════
-        //  MINIMIZE
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
+        //  MINIMIZE & PIP
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         minimizeBtn.addEventListener('click', function (e) {
             e.stopPropagation();
             isPanelOpen = false;
@@ -135,13 +203,35 @@
             panel.classList.remove('visible');
         });
 
-        // ═══════════════════════════════════════
+        var pipBtn = root.querySelector('#yk-pip-btn');
+        if (pipBtn) {
+            pipBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                openPiP();
+            });
+        }
+
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         //  DRAG (Sürükleme)
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         var header = root.querySelector('.panel-header');
         var isDragging = false;
         var dragStartX, dragStartY;
         var rootStartRight, rootStartBottom;
+
+        function onDragMove(e) {
+            if (!isDragging) return;
+            var dx = dragStartX - e.clientX;
+            var dy = dragStartY - e.clientY;
+            root.style.right = Math.max(0, rootStartRight + dx) + 'px';
+            root.style.bottom = Math.max(0, rootStartBottom + dy) + 'px';
+        }
+
+        function onDragEnd() {
+            isDragging = false;
+            document.removeEventListener('mousemove', onDragMove);
+            document.removeEventListener('mouseup', onDragEnd);
+        }
 
         header.addEventListener('mousedown', function (e) {
             if (e.target.closest('.header-btn')) return;
@@ -151,21 +241,13 @@
             rootStartRight = parseInt(root.style.right) || 20;
             rootStartBottom = parseInt(root.style.bottom) || 20;
             e.preventDefault();
+            document.addEventListener('mousemove', onDragMove);
+            document.addEventListener('mouseup', onDragEnd);
         });
 
-        document.addEventListener('mousemove', function (e) {
-            if (!isDragging) return;
-            var dx = dragStartX - e.clientX;
-            var dy = dragStartY - e.clientY;
-            root.style.right = Math.max(0, rootStartRight + dx) + 'px';
-            root.style.bottom = Math.max(0, rootStartBottom + dy) + 'px';
-        });
-
-        document.addEventListener('mouseup', function () { isDragging = false; });
-
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         //  VIDEO CONTROLS
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         btnPlay.addEventListener('click', function () { yakishi.togglePlay(); });
         btnBack.addEventListener('click', function () { yakishi.seekBackward(); });
         btnForward.addEventListener('click', function () { yakishi.seekForward(); });
@@ -174,9 +256,9 @@
             yakishi.setVolume(parseInt(e.target.value) / 100);
         });
 
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         //  CHAT
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         sendBtn.addEventListener('click', sendMessage);
         msgInput.addEventListener('keypress', function (e) {
             if (e.key === 'Enter') sendMessage();
@@ -193,78 +275,138 @@
             msgInput.value = '';
         }
 
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         //  REACTIONS
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         root.querySelectorAll('.reaction-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 yakishi.sendReaction(btn.getAttribute('data-emoji'));
             });
         });
 
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         //  TOGGLE BUTTONS
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         btnDraw.addEventListener('click', function () { yakishi.toggleDrawing(); });
         btnMouse.addEventListener('click', function () { yakishi.toggleMouseShare(); });
 
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         //  EVENT LISTENERS (content.js'den)
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
 
         events.addEventListener('connected', function (e) {
+            var silentConnect = !!e.detail.silent;
             isConnected = true;
             fab.style.display = 'flex';
             fab.classList.add('connected');
             statusDot.classList.add('online');
-            statusText.textContent = e.detail.name + ' — ' + e.detail.room;
-            showNotification('Sistem', 'Bağlandı!');
+            statusText.textContent = e.detail.name + ' � ' + e.detail.room;
+            if (!silentConnect) showNotification('Sistem', 'Ba�xlandı!');
 
             // Paneli otomatik aç
-            isPanelOpen = true;
-            panel.classList.remove('hidden');
-            panel.classList.add('visible');
+            if (!silentConnect) {
+                isPanelOpen = true;
+                panel.classList.remove('hidden');
+                panel.classList.add('visible');
+            }
         });
 
         events.addEventListener('disconnected', function () {
+            // Hata 2: �nce mevcut durumu kontrol et, sonra güncelle
             var wasConnected = isConnected;
             isConnected = false;
             fab.classList.remove('connected');
             statusDot.classList.remove('online');
-            statusText.textContent = 'Bağlantı koptu...';
+            statusText.textContent = 'Ba�xlantı koptu...';
 
             if (wasConnected) {
-                showNotification('Sistem', 'Bağlantı kesildi!');
+                showNotification('Sistem', 'Ba�xlantı kesildi!');
             }
         });
 
         events.addEventListener('chat-message', function (e) {
-            addMessage(e.detail.sender, e.detail.text, false);
-            if (!isPanelOpen) {
+            addMessage(e.detail.sender, e.detail.text, false, e.detail.isHistory);
+            if (!isPanelOpen && !e.detail.isHistory) {
                 unreadCount++;
                 unreadBadge.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
                 unreadBadge.classList.add('visible');
                 showNotification(e.detail.sender, e.detail.text);
+                // �zellik 8: Sesli bildirim
+                if (window.yakishi && window.yakishi.getState && window.yakishi.getState().soundEnabled) {
+                    playNotificationSound();
+                }
             }
         });
 
         events.addEventListener('own-message', function (e) {
-            addMessage(e.detail.sender, e.detail.text, true);
+            addMessage(e.detail.sender, e.detail.text, true, false);
         });
 
         events.addEventListener('system-message', function (e) {
             addSystemMessage(e.detail.text);
-            showNotification('Sistem', e.detail.text);
+            // Geçmi�x mesajlar için bildirim gösterme
+            if (!e.detail.isHistory) showNotification('Sistem', e.detail.text);
         });
 
         events.addEventListener('user-list', function (e) {
+            var amLeader = !!e.detail.amLeader;
+            var myName = e.detail.myName;
             userList.innerHTML = '<span class="user-list-label">İzleyenler</span>';
             e.detail.users.forEach(function (user) {
                 var tag = document.createElement('span');
                 tag.className = 'user-tag';
-                tag.textContent = typeof user === 'string' ? user : user.name;
+                var name = (typeof user === 'object') ? user.name : user;
+                if (typeof user === 'object') {
+                    // Başkan tacı
+                    if (user.isLeader) {
+                        var crown = document.createElement('span');
+                        crown.className = 'leader-crown';
+                        crown.textContent = '\uD83D\uDC51';
+                        crown.title = 'Başkan';
+                        tag.appendChild(crown);
+                        tag.classList.add('is-leader');
+                    }
+                    // Yavaş bağlantı göstergesi
+                    if (user.slowConnection) tag.classList.add('slow-connection');
+                }
+                tag.appendChild(document.createTextNode(name));
+
+                // Başkan, başka birine tıklayarak başkanlığı devredebilir
+                if (amLeader && name !== myName && typeof user === 'object') {
+                    tag.classList.add('can-transfer');
+                    tag.title = 'Başkanlığı ' + name + ' kişisine devret';
+                    tag.addEventListener('click', function () {
+                        if (confirm('Başkanlığı ' + name + ' kişisine devretmek istiyor musun?')) {
+                            yakishi.transferLeader(name);
+                        }
+                    });
+                }
                 userList.appendChild(tag);
             });
+        });
+
+        // Başkan farklı bir sitede video açtı → sor
+        var leaderPromptTimeout = null;
+        events.addEventListener('leader-prompt', function (e) {
+            var box = root.querySelector('.yakishi-leader-prompt');
+            if (!box) return;
+            var url = e.detail.url;
+            box.querySelector('.leader-prompt-msg').textContent =
+                '\uD83D\uDC51 ' + e.detail.leaderName + ' bir video açtı:';
+            box.querySelector('.leader-prompt-domain').textContent = e.detail.domain || url;
+            box.querySelector('.leader-prompt-domain').title = url;
+            box.classList.add('show');
+
+            var openBtn = box.querySelector('#yk-leader-open');
+            var ignoreBtn = box.querySelector('#yk-leader-ignore');
+            openBtn.onclick = function () {
+                box.classList.remove('show');
+                yakishi.followLeader(url);
+            };
+            ignoreBtn.onclick = function () { box.classList.remove('show'); };
+
+            clearTimeout(leaderPromptTimeout);
+            leaderPromptTimeout = setTimeout(function () { box.classList.remove('show'); }, 30000);
         });
 
         events.addEventListener('play-state-changed', function (e) {
@@ -283,7 +425,7 @@
         });
 
         events.addEventListener('emergency-pause', function (e) {
-            emergencyMsg.textContent = e.detail.userName + ' DÜŞTÜ! Video durduruldu.';
+            emergencyMsg.textContent = e.detail.userName + ' \u26A0\uFE0F D\u00DC\u015ET\u00DC! Video durduruldu.';
             emergency.classList.add('show');
             setTimeout(function () { emergency.classList.remove('show'); }, 5000);
         });
@@ -310,20 +452,20 @@
         events.addEventListener('drawing-changed', function (e) {
             if (e.detail.active) {
                 btnDraw.classList.add('active');
-                showNotification('Mod', 'Çizim Modu: AÇIK');
+                showNotification('Mod', '\u270F\uFE0F \u00C7izim Modu: A\u00C7IK');
             } else {
                 btnDraw.classList.remove('active');
-                showNotification('Mod', 'Çizim Modu: KAPALI');
+                showNotification('Mod', '\u270F\uFE0F \u00C7izim Modu: KAPALI');
             }
         });
 
         events.addEventListener('mouse-share-changed', function (e) {
             if (e.detail.active) {
                 btnMouse.classList.add('active');
-                showNotification('Sistem', 'Mouse Takibi: AÇIK');
+                showNotification('Sistem', '\uD83D\uDDF1\uFE0F Mouse Takibi: A\u00C7IK');
             } else {
                 btnMouse.classList.remove('active');
-                showNotification('Sistem', 'Mouse Takibi: KAPALI');
+                showNotification('Sistem', '\uD83D\uDDF1\uFE0F Mouse Takibi: KAPALI');
             }
         });
 
@@ -331,23 +473,31 @@
             showNotification('Sistem', 'Video bulundu!');
         });
 
-        // ─── Remote Mouse Cursors ───
-        events.addEventListener('remote-mouse', function (e) {
-            showRemoteCursor(e.detail);
-        });
+        // ������ Remote Mouse Cursors ������
 
-        events.addEventListener('remove-cursor', function (e) {
-            var cursor = document.getElementById('yakishi-cursor-' + e.detail.id);
-            if (cursor) cursor.remove();
-        });
 
-        // ═══════════════════════════════════════
+
+
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         //  HELPER FUNCTIONS
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
 
-        function addMessage(sender, text, isMine) {
+        function showFloatingEmoji(emoji) {
+            var el = document.createElement('div');
+            el.className = 'floating-emoji';
+            el.textContent = emoji;
+            
+            // Ekranda rastgele ama ortalı yatay pozisyonda çıkması için
+            el.style.left = (30 + Math.random() * 40) + '%';
+            root.appendChild(el); // Shadow DOM root'una ekliyoruz
+            
+            // Animasyon (floatUp) bittikten sonra DOM'dan temizle
+            setTimeout(function () { el.remove(); }, 3000);
+        }
+
+        function addMessage(sender, text, isMine, isHistory) {
             var div = document.createElement('div');
-            div.className = 'msg' + (isMine ? ' mine' : '');
+            div.className = 'msg' + (isMine ? ' mine' : '') + (isHistory ? ' history' : '');
             div.innerHTML = '<strong>' + escapeHtml(sender) + ':</strong> ' + escapeHtml(text);
             chatMessages.appendChild(div);
             chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -376,69 +526,23 @@
             }, 3000);
         }
 
-        function showFloatingEmoji(type) {
-            var el = document.createElement('div');
-            el.className = 'floating-emoji';
-            el.textContent = type;
-            el.style.left = (Math.random() * 70 + 15) + '%';
-            root.appendChild(el);
-            setTimeout(function () { el.remove(); }, 3000);
-        }
-
-        function showRemoteCursor(data) {
-            // Ana sayfa DOM'unda göster (Shadow DOM dışında)
-            var cursorId = 'yakishi-cursor-' + data.id;
-            var cursor = document.getElementById(cursorId);
-            if (!cursor) {
-                cursor = document.createElement('div');
-                cursor.id = cursorId;
-                cursor.style.cssText =
-                    'position:fixed;pointer-events:none;z-index:2147483645;' +
-                    'width:12px;height:12px;border-radius:50%;' +
-                    'background:' + (data.color || '#ff80bf') + ';' +
-                    'box-shadow:0 0 10px ' + (data.color || '#ff80bf') + ';' +
-                    'transform:translate(-50%,-50%);' +
-                    'transition:left 0.1s linear,top 0.1s linear,opacity 0.3s;';
-
-                var nameTag = document.createElement('span');
-                nameTag.style.cssText =
-                    'position:absolute;top:15px;left:50%;transform:translateX(-50%);' +
-                    'background:rgba(0,0,0,0.75);color:white;padding:2px 6px;' +
-                    'border-radius:4px;font-size:10px;white-space:nowrap;' +
-                    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
-                nameTag.textContent = data.name || '?';
-                cursor.appendChild(nameTag);
-                document.body.appendChild(cursor);
-            }
-
-            // Video üzerinde konumlandır
-            var video = document.querySelector('video');
-            if (video) {
-                var rect = video.getBoundingClientRect();
-                cursor.style.left = (rect.left + (data.x / 100) * rect.width) + 'px';
-                cursor.style.top = (rect.top + (data.y / 100) * rect.height) + 'px';
-            }
-            cursor.style.opacity = '1';
-
-            // Trail efekti
-            if (video) {
-                var trail = document.createElement('div');
-                trail.style.cssText =
-                    'position:fixed;pointer-events:none;z-index:2147483644;' +
-                    'width:8px;height:8px;border-radius:50%;' +
-                    'background:' + (data.color || '#ff80bf') + ';' +
-                    'transform:translate(-50%,-50%);opacity:0.6;' +
-                    'left:' + cursor.style.left + ';top:' + cursor.style.top + ';' +
-                    'transition:opacity 0.5s;';
-                document.body.appendChild(trail);
-                setTimeout(function () { trail.style.opacity = '0'; }, 50);
-                setTimeout(function () { trail.remove(); }, 600);
-            }
-
-            clearTimeout(cursor._hideTimeout);
-            cursor._hideTimeout = setTimeout(function () {
-                cursor.style.opacity = '0';
-            }, 2000);
+        function playNotificationSound() {
+            try {
+                var AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return;
+                var ctx = new AC();
+                var osc = ctx.createOscillator();
+                var gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.setValueAtTime(880, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.3);
+                osc.onended = function () { ctx.close(); };
+            } catch (e) { /* AudioContext desteklenmiyor */ }
         }
 
         function formatTime(s) {
@@ -454,9 +558,9 @@
             return div.innerHTML;
         }
 
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         //  BUILD PANEL HTML
-        // ═══════════════════════════════════════
+        // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         function buildPanelHTML() {
             var imgUrl = '';
             try { imgUrl = chrome.runtime.getURL('simgecik.png'); } catch (e) { imgUrl = ''; }
@@ -464,7 +568,7 @@
             return '' +
                 /* FAB */
                 '<div class="yakishi-fab">' +
-                    (imgUrl ? '<img src="' + imgUrl + '" alt="Y" class="fab-icon">' : '<span style="font-size:20px;color:#ff80bf">🔥</span>') +
+                    (imgUrl ? '<img src="' + imgUrl + '" alt="Y" class="fab-icon">' : '<span style="font-size:20px;color:#ff80bf">📺</span>') +
                     '<span class="unread-badge"></span>' +
                 '</div>' +
 
@@ -474,6 +578,7 @@
                     '<div class="panel-header">' +
                         '<span class="header-title">🔥 HD Yakishi Cehennemi</span>' +
                         '<div class="header-actions">' +
+                            '<button class="header-btn" id="yk-pip-btn" title="Ayrı Pencere (PiP)"> \uD83E\uDE9F </button>' +
                             '<button class="header-btn" id="yk-minimize-btn" title="Küçült">' + ICONS.minimize + '</button>' +
                         '</div>' +
                     '</div>' +
@@ -506,12 +611,12 @@
 
                     /* Reactions */
                     '<div class="reaction-bar">' +
-                        '<button class="reaction-btn" data-emoji="❤️">❤️</button>' +
-                        '<button class="reaction-btn" data-emoji="😂">😂</button>' +
-                        '<button class="reaction-btn" data-emoji="😲">😲</button>' +
-                        '<button class="reaction-btn" data-emoji="👏">👏</button>' +
-                        '<button class="reaction-btn" data-emoji="🔥">🔥</button>' +
-                    '</div>' +
+'<button class="reaction-btn" data-emoji="\u2764\uFE0F">\u2764\uFE0F</button>' +
+'<button class="reaction-btn" data-emoji="\uD83D\uDE02">\uD83D\uDE02</button>' +
+'<button class="reaction-btn" data-emoji="\uD83D\uDE32">\uD83D\uDE32</button>' +
+'<button class="reaction-btn" data-emoji="\uD83D\uDC4F">\uD83D\uDC4F</button>' +
+'<button class="reaction-btn" data-emoji="\uD83D\uDD25">\uD83D\uDD25</button>' +
+'</div>' +
 
                     /* Input */
                     '<div class="chat-input-area">' +
@@ -521,7 +626,7 @@
 
                     /* Toggles */
                     '<div class="toggle-bar">' +
-                        '<button class="toggle-btn" id="yk-btn-draw" title="Çizim Modu">' + ICONS.pencil + ' Çizim</button>' +
+                        '<button class="toggle-btn" id="yk-btn-draw" title="Çizim Modu">✏️ Çizim</button>' +
                         '<button class="toggle-btn" id="yk-btn-mouse" title="Mouse Paylaş">' + ICONS.mouse + ' Mouse</button>' +
                     '</div>' +
                 '</div>' +
@@ -538,6 +643,16 @@
                     '<div class="emergency-msg"></div>' +
                 '</div>' +
 
+                /* Leader Prompt */
+                '<div class="yakishi-leader-prompt">' +
+                    '<div class="leader-prompt-msg"></div>' +
+                    '<div class="leader-prompt-domain"></div>' +
+                    '<div class="leader-prompt-actions">' +
+                        '<button class="leader-prompt-btn primary" id="yk-leader-open">Aç</button>' +
+                        '<button class="leader-prompt-btn" id="yk-leader-ignore">Yoksay</button>' +
+                    '</div>' +
+                '</div>' +
+
                 /* URL Warning */
                 '<div class="yakishi-url-warning">' +
                     '<div class="warning-icon">⚠️</div>' +
@@ -546,3 +661,7 @@
         }
     }
 })();
+
+
+
+

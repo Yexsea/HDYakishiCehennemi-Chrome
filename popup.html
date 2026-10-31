@@ -3,104 +3,271 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 
         body {
             width: 320px;
-            background: linear-gradient(135deg, #050505 0%, #1f1016 100%);
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(145deg, #050508 0%, #1a0a14 40%, #0d0515 100%);
+            overflow: hidden;
+        }
+
+        .popup-container {
             color: #e0e0e0;
             padding: 24px 20px;
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
             min-height: 200px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Ambient glow background */
+        .popup-container::before {
+            content: '';
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(255, 128, 191, 0.08) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .popup-container > * {
+            position: relative;
+            z-index: 1;
         }
 
         .logo {
-            font-size: 1.3rem;
+            font-size: 1.25rem;
             font-weight: 800;
             color: #ff80bf;
             text-align: center;
             margin-bottom: 20px;
             text-transform: uppercase;
-            text-shadow: 0 0 20px rgba(255, 128, 191, 0.3);
-            line-height: 1.3;
-            letter-spacing: 0.5px;
+            text-shadow: 0 0 24px rgba(255, 128, 191, 0.35), 0 0 60px rgba(255, 128, 191, 0.1);
+            line-height: 1.35;
+            letter-spacing: 0.8px;
+            transition: all 0.3s ease;
         }
 
-        .logo-emoji { font-size: 1.5rem; display: block; margin-bottom: 6px; }
+        .logo-emoji {
+            font-size: 1.6rem;
+            display: block;
+            margin-bottom: 6px;
+            filter: drop-shadow(0 0 8px rgba(255, 128, 191, 0.4));
+        }
 
+        /* Power Switch */
+        .power-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 128, 191, 0.06);
+        }
+
+        .switch-label {
+            font-size: 10px;
+            color: #666;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 700;
+            transition: color 0.4s ease;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .switch input { 
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255,255,255,0.06);
+            transition: .4s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 34px;
+            border: 2px solid rgba(255,255,255,0.05);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 2px;
+            bottom: 2px;
+            background-color: #444;
+            transition: .4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background: linear-gradient(135deg, rgba(255, 128, 191, 0.2), rgba(255, 0, 100, 0.15));
+            border-color: rgba(255, 128, 191, 0.5);
+            box-shadow: 0 0 20px rgba(255, 128, 191, 0.3), 0 0 40px rgba(255, 128, 191, 0.1);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+            background: linear-gradient(135deg, #ff80bf, #ff4d94);
+            box-shadow: 0 0 12px rgba(255, 128, 191, 0.8), 0 2px 6px rgba(0,0,0,0.3);
+        }
+
+        /* Power ON Animation */
+        .power-flash {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, rgba(255, 128, 191, 0.2), transparent 70%);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+        }
+
+        .power-flash.active {
+            animation: flashAnim 0.8s ease-out;
+        }
+
+        @keyframes flashAnim {
+            0% { opacity: 0; }
+            30% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* Main Content */
+        #main-content {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .power-off-msg {
+            text-align: center;
+            color: #444;
+            font-size: 12px;
+            padding: 24px 0;
+            font-style: italic;
+            letter-spacing: 0.3px;
+            line-height: 1.5;
+        }
+
+        /* Inputs */
         .input-field {
             width: 100%;
             padding: 12px 14px;
             margin-bottom: 8px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
             color: white;
-            border-radius: 10px;
-            font-size: 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 500;
             outline: none;
-            transition: border-color 0.3s, box-shadow 0.3s;
+            transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
         }
 
         .input-field:focus {
             border-color: rgba(255, 128, 191, 0.4);
-            box-shadow: 0 0 0 3px rgba(255, 128, 191, 0.08);
+            box-shadow: 0 0 0 3px rgba(255, 128, 191, 0.06), 0 0 20px rgba(255, 128, 191, 0.08);
+            background: rgba(255, 128, 191, 0.02);
         }
 
-        .input-field::placeholder { color: #555; }
+        .input-field::placeholder { color: #444; font-weight: 400; }
 
         .input-field.error {
             border-color: #ff0040;
-            animation: shake 0.3s ease;
+            box-shadow: 0 0 0 3px rgba(255, 0, 64, 0.1);
+            animation: shake 0.35s ease;
         }
 
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-4px); }
-            75% { transform: translateX(4px); }
+            20% { transform: translateX(-5px); }
+            40% { transform: translateX(5px); }
+            60% { transform: translateX(-3px); }
+            80% { transform: translateX(3px); }
         }
 
+        /* Buttons */
         .btn {
             width: 100%;
             padding: 13px;
-            background: linear-gradient(135deg, #ff80bf, #ff0040);
+            background: linear-gradient(135deg, #ff80bf 0%, #ff3380 50%, #ff0050 100%);
             border: none;
             color: #fff;
             font-weight: 700;
-            border-radius: 10px;
-            font-size: 14px;
+            border-radius: 12px;
+            font-size: 13px;
             cursor: pointer;
             margin-top: 10px;
-            transition: transform 0.2s, box-shadow 0.2s;
-            letter-spacing: 0.3px;
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            position: relative;
+            overflow: hidden;
         }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn:hover::before { left: 100%; }
 
         .btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 18px rgba(255, 128, 191, 0.35);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(255, 128, 191, 0.35), 0 0 40px rgba(255, 128, 191, 0.1);
+            filter: brightness(1.05);
         }
 
-        .btn:active { transform: translateY(0); }
+        .btn:active { transform: translateY(0); filter: brightness(0.95); }
 
         .btn-disconnect {
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
             margin-top: 10px;
+            text-transform: none;
+            font-weight: 600;
         }
+
+        .btn-disconnect::before { display: none; }
 
         .btn-disconnect:hover {
-            background: rgba(255, 0, 64, 0.15);
-            border-color: rgba(255, 0, 64, 0.3);
-            box-shadow: 0 4px 15px rgba(255, 0, 64, 0.15);
+            background: rgba(255, 0, 64, 0.12);
+            border-color: rgba(255, 0, 64, 0.25);
+            box-shadow: 0 4px 15px rgba(255, 0, 64, 0.12);
+            color: #ff6688;
         }
 
+        /* Status */
         .status-box {
             display: flex;
             align-items: center;
             gap: 10px;
             padding: 12px 14px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
             font-size: 13px;
+            font-weight: 500;
             margin-bottom: 6px;
         }
 
@@ -109,76 +276,312 @@
             height: 8px;
             border-radius: 50%;
             flex-shrink: 0;
+            transition: all 0.4s ease;
         }
 
         .status-dot.online {
             background: #4CAF50;
-            box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.6), 0 0 20px rgba(76, 175, 80, 0.2);
+            animation: glow-pulse 2s ease-in-out infinite;
         }
 
-        .status-dot.offline { background: #555; }
+        @keyframes glow-pulse {
+            0%, 100% { box-shadow: 0 0 8px rgba(76, 175, 80, 0.6); }
+            50% { box-shadow: 0 0 14px rgba(76, 175, 80, 0.8), 0 0 28px rgba(76, 175, 80, 0.2); }
+        }
 
-        .connected-panel { display: none; }
+        .status-dot.offline { background: #444; }
 
         .info-text {
             font-size: 10px;
-            color: #555;
+            color: #444;
             text-align: center;
-            margin-top: 12px;
-            line-height: 1.4;
+            margin-top: 14px;
+            line-height: 1.5;
+            letter-spacing: 0.2px;
         }
 
         .connected-info {
             font-size: 11px;
-            color: #888;
+            color: #666;
             text-align: center;
             margin-top: 8px;
             line-height: 1.4;
         }
 
-        .shortcut-hint {
-            font-size: 10px;
-            color: #444;
-            text-align: center;
-            margin-top: 8px;
-            padding: 8px;
+        /* Server Status */
+        .server-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
             background: rgba(255, 255, 255, 0.02);
-            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            padding: 8px 12px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            font-size: 11px;
+            color: #777;
+            transition: all 0.4s ease;
         }
 
-        .shortcut-hint kbd {
-            background: rgba(255, 255, 255, 0.08);
-            padding: 2px 5px;
-            border-radius: 3px;
+        .server-status.hidden { display: none; }
+
+        .server-status .server-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #ffcc00;
+            box-shadow: 0 0 8px rgba(255, 204, 0, 0.6);
+            animation: pulse 1.5s infinite;
+        }
+
+        .server-status.ready {
+            border-color: rgba(76, 175, 80, 0.15);
+            background: rgba(76, 175, 80, 0.03);
+        }
+
+        .server-status.ready .server-dot {
+            background: #4CAF50;
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.4; transform: scale(0.9); }
+            50% { opacity: 1; transform: scale(1.1); }
+            100% { opacity: 0.4; transform: scale(0.9); }
+        }
+
+        /* Header Nav */
+        .header-nav {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 4px;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: #555;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: color 0.2s, background 0.2s, transform 0.2s;
+        }
+
+        .icon-btn:hover { color: #ff80bf; background: rgba(255,128,191,0.08); transform: scale(1.05); }
+
+        /* Settings */
+        .settings-back {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .settings-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #e0e0e0;
+            letter-spacing: 0.3px;
+        }
+
+        .settings-section {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 8px;
+            transition: border-color 0.3s;
+        }
+
+        .settings-section:hover {
+            border-color: rgba(255, 128, 191, 0.08);
+        }
+
+        .settings-label {
             font-size: 10px;
-            color: #999;
-            font-family: monospace;
+            font-weight: 700;
+            color: #ff80bf;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 10px;
+        }
+
+        .settings-sublabel {
+            font-size: 10px;
+            color: #555;
+            margin-top: 2px;
+        }
+
+        .settings-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .color-swatches {
+            display: flex;
+            gap: 8px;
+        }
+
+        .color-swatch {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.3s, box-shadow 0.3s;
+            position: relative;
+        }
+
+        .color-swatch:hover { transform: scale(1.2); }
+        .color-swatch.active {
+            border-color: white;
+            transform: scale(1.1);
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.15);
+        }
+
+        .small-switch { transform: scale(0.8); transform-origin: right center; }
+
+        .shortcut-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            color: #888;
+        }
+
+        .shortcut-table td {
+            padding: 5px 0;
+        }
+
+        .shortcut-table td:first-child {
+            color: #ff80bf;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            width: 50%;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        /* Version badge */
+        .version-badge {
+            text-align: center;
+            margin-top: 16px;
+            font-size: 9px;
+            color: #333;
+            letter-spacing: 1px;
+            font-weight: 600;
         }
     </style>
 </head>
 <body>
-    <div class="logo">
-        <span class="logo-emoji">🔥</span>
-        HD Yakishi<br>Cehennemi
-    </div>
-
-    <div id="setup-panel">
-        <input type="text" id="username" class="input-field" placeholder="İsminiz?" maxlength="15" autocomplete="off">
-        <input type="text" id="roomname" class="input-field" placeholder="Oda Adı" value="Yakishi" autocomplete="off">
-        <button class="btn" id="join-btn">Bağlan</button>
-        <div class="info-text">Odaya bağlanınca sayfadaki video otomatik<br>senkronize edilir ve chat paneli açılır.</div>
-    </div>
-
-    <div id="connected-panel" class="connected-panel">
-        <div class="status-box">
-            <span class="status-dot online" id="status-dot"></span>
-            <span id="status-text">Bağlı</span>
+    <div class="popup-container">
+        <div class="power-flash" id="power-flash"></div>
+        
+        <div class="logo" id="main-logo">
+            <span class="logo-emoji">🔥</span>
+            HD Yakishi<br>Cehennemi
         </div>
-        <div class="connected-info">Chat paneli sayfanın sağ alt köşesinde açık.</div>
-        <div class="shortcut-hint">
-            Kısayollar: <kbd>Alt+Space</kbd> Oynat/Durdur &nbsp; <kbd>Alt+←→</kbd> 5sn
+
+        <div class="power-section">
+            <div class="switch-label" id="power-label">Sistem Kapalı</div>
+            <label class="switch">
+                <input type="checkbox" id="power-toggle">
+                <span class="slider"></span>
+            </label>
         </div>
-        <button class="btn btn-disconnect" id="disconnect-btn">Bağlantıyı Kes</button>
+
+        <div class="header-nav">
+            <button class="icon-btn" id="settings-btn" title="Ayarlar">&#9881;</button>
+        </div>
+
+        <div id="main-content">
+            <!-- Off State -->
+            <div id="power-off-panel">
+                <div class="power-off-msg">
+                    Eklentiyi kullanmak için<br>gücü açın.
+                </div>
+            </div>
+
+            <!-- Setup State -->
+            <div id="setup-panel" style="display: none;">
+                <div id="server-status" class="server-status hidden">
+                    <span class="server-dot"></span>
+                    <span id="server-status-text">Sunucu uyanıyor...</span>
+                </div>
+
+                <input type="text" id="username" class="input-field" placeholder="İsminiz?" maxlength="15" autocomplete="off">
+                <input type="text" id="roomname" class="input-field" placeholder="Oda Adı" value="Yakishi" autocomplete="off">
+                <button class="btn" id="join-btn">Bağlan</button>
+                <div class="info-text">Odaya bağlanınca bulunduğunuz sekmede<br>sohbet paneli açılır.</div>
+            </div>
+
+            <!-- Connected State -->
+            <div id="connected-panel" style="display: none;">
+                <div class="status-box">
+                    <span class="status-dot online" id="status-dot"></span>
+                    <span id="status-text">Bağlı</span>
+                </div>
+                <div class="connected-info">Sohbet paneli bu sekmede sağ altta.</div>
+                <button class="btn btn-disconnect" id="disconnect-btn">Bağlantıyı Kes</button>
+            </div>
+
+            <!-- Settings Panel (now correctly inside main-content) -->
+            <div id="settings-panel" style="display: none;">
+                <div class="settings-back">
+                    <button class="icon-btn" id="settings-back-btn">&#8592; Geri</button>
+                    <span class="settings-title">Ayarlar</span>
+                </div>
+
+                <div class="settings-section">
+                    <div class="settings-label">Çizim Rengi</div>
+                    <div class="color-swatches">
+                        <button class="color-swatch" data-color="#ff80bf" style="background:#ff80bf;" title="Pembe"></button>
+                        <button class="color-swatch" data-color="#4fc3f7" style="background:#4fc3f7;" title="Mavi"></button>
+                        <button class="color-swatch" data-color="#69f0ae" style="background:#69f0ae;" title="Yeşil"></button>
+                        <button class="color-swatch" data-color="#ff9800" style="background:#ff9800;" title="Turuncu"></button>
+                        <button class="color-swatch" data-color="#ce93d8" style="background:#ce93d8;" title="Mor"></button>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <div class="settings-row">
+                        <div>
+                            <div class="settings-label">Sesli Bildirim</div>
+                            <div class="settings-sublabel">Mesaj gelince kısa ses</div>
+                        </div>
+                        <label class="switch small-switch">
+                            <input type="checkbox" id="sound-toggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <div class="settings-row">
+                        <div>
+                            <div class="settings-label">👑 Başkanı Takip Et</div>
+                            <div class="settings-sublabel">Aynı sitedeyse başkanın videosunu direkt aç</div>
+                        </div>
+                        <label class="switch small-switch">
+                            <input type="checkbox" id="follow-leader-toggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <div class="settings-label">Klavye Kısayolları</div>
+                    <table class="shortcut-table">
+                        <tr><td>Alt + Boşluk</td><td>Oynat / Durdur</td></tr>
+                        <tr><td>Alt + &rarr;</td><td>+5 saniye ileri</td></tr>
+                        <tr><td>Alt + &larr;</td><td>-5 saniye geri</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="version-badge">v3.0</div>
     </div>
 
     <script src="popup.js"></script>
