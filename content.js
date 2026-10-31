@@ -50,6 +50,16 @@
     let lastLeaderSentUrl = '';      // Başkan olarak en son bildirilen URL
     let iframeVideoUrl = '';         // Video iframe içindeyse, bulunduğu sayfanın URL'i
 
+    // Hassas senkron
+    let clockOffset = null;          // sunucu saati - yerel saat (ms); null = henüz ölçülmedi
+    let clockSamples = [];           // { rtt, off } ölçümleri
+    let lastRtt = 100;               // son ölçülen gidiş-dönüş süresi (ms)
+    let timeSyncInterval = null;
+    let positionInterval = null;     // her saniye video konumunu raporla
+    let baseRate = 1;                // ince ayar yokken olması gereken oynatma hızı
+    let rateCorrecting = false;      // şu an hız ince ayarı yapılıyor mu
+    let rateResetTimer = null;
+
     // """""""""""""""""""""""""""""""""""""""
     //  EVENT SYSTEM  (panel.js ile iletixim)
     // """""""""""""""""""""""""""""""""""""""
@@ -329,7 +339,23 @@
         if (isTopFrame) emit('play-state-changed', { playing: false });
     }
 
+    // Senkron için programla yapılan atlama: bitince 'seeked' olayı diğerlerine geri yollanmasın
+    let programmaticSeek = false;
+    let programmaticSeekTimer = null;
+    function syncSeek(t) {
+        if (!videoElement) return;
+        programmaticSeek = true;
+        clearTimeout(programmaticSeekTimer);
+        programmaticSeekTimer = setTimeout(function () { programmaticSeek = false; }, 5000);
+        videoElement.currentTime = t;
+    }
+
     function onVideoSeeked() {
+        if (programmaticSeek) {
+            programmaticSeek = false;
+            clearTimeout(programmaticSeekTimer);
+            return;
+        }
         if (!isSyncing) emitSync('seek', videoElement.currentTime);
     }
 
@@ -350,13 +376,153 @@
         }
     }
 
-    function emitSync(action, time) {
+    function emitSync(action, time, localAt) {
+        localAt = localAt || Date.now();
         if (isTopFrame) {
             if (socket && myRoom) {
-                socket.emit('sync-action', { roomId: myRoom, type: action, time: time });
+                var payload = { roomId: myRoom, type: action, time: time };
+                // Saat ölçüldüyse olayın sunucu saatine göre ne zaman olduğunu da gönder
+                if (clockOffset !== null) payload.at = localAt + clockOffset;
+                socket.emit('sync-action', payload);
             }
         } else {
-            chrome.runtime.sendMessage({ type: 'YAKISHI_RELAY', payload: { type: 'YAKISHI_VIDEO_EVENT', action: action, time: time } });
+            chrome.runtime.sendMessage({ type: 'YAKISHI_RELAY', payload: { type: 'YAKISHI_VIDEO_EVENT', action: action, time: time, localAt: localAt } });
+        }
+    }
+
+    // =======================================
+    //  HASSAS SENKRON
+    // =======================================
+    function serverNow() {
+        return Date.now() + (clockOffset || 0);
+    }
+
+    // count adet ölçüm, aralarında 150ms
+    function runClockSync(count) {
+        var i = 0;
+        (function one() {
+            if (!socket || !socket.connected) return;
+            socket.emit('time-sync', { t0: Date.now() });
+            if (++i < count) setTimeout(one, 150);
+        })();
+    }
+
+    function onTimeSyncReply(d) {
+        var rtt = Date.now() - d.t0;
+        if (!(rtt >= 0 && rtt < 5000)) return;
+        lastRtt = rtt;
+        clockSamples.push({ rtt: rtt, off: d.serverTime - (d.t0 + rtt / 2) });
+        if (clockSamples.length > 15) clockSamples.shift();
+        // En kısa gidiş-dönüşlü ölçüm en güvenilir olanıdır
+        var best = clockSamples[0];
+        for (var i = 1; i < clockSamples.length; i++) if (clockSamples[i].rtt < best.rtt) best = clockSamples[i];
+        clockOffset = best.off;
+    }
+
+    // Bir olayın üzerinden geçen süre (sn). at = olayın sunucu saatindeki zamanı
+    function elapsedSince(at, sentServerNow) {
+        if (typeof at !== 'number') return 0;
+        var ms = (clockOffset !== null)
+            ? serverNow() - at
+            : (typeof sentServerNow === 'number' ? (sentServerNow - at) + lastRtt / 2 : 0);
+        return Math.min(10, Math.max(0, ms / 1000));
+    }
+
+    function setRate(r) {
+        if (!videoElement) return;
+        try {
+            if (Math.abs(videoElement.playbackRate - r) > 0.0005) videoElement.playbackRate = r;
+        } catch (e) {}
+    }
+
+    function stopRateCorrection() {
+        if (rateCorrecting) setRate(baseRate);
+        rateCorrecting = false;
+    }
+
+    // Senkron olayını uygula (videonun olduğu frame'de çalışır)
+    function applySync(time, type, elapsed) {
+        if (!videoElement) return;
+        var willPlay = type === 'play' || (type === 'seek' && !videoElement.paused);
+        var target = time + (willPlay ? elapsed * (rateCorrecting ? baseRate : videoElement.playbackRate) : 0);
+        isSyncing = true;
+        // Oynarken küçük farkları ince ayar halleder; büyük farkta atla
+        var threshold = willPlay ? 0.25 : 0.05;
+        if (Math.abs(videoElement.currentTime - target) > threshold) {
+            syncSeek(target);
+        }
+        if (type === 'play') {
+            videoElement.play().catch(console.error);
+        } else if (type === 'pause') {
+            stopRateCorrection();
+            videoElement.pause();
+        }
+        setTimeout(function () { isSyncing = false; }, 500);
+    }
+
+    // Başkanın konumuna kilitlen: küçük farkta hızı hafifçe değiştir, büyük farkta atla
+    function applyLeaderPosition(p) {
+        if (!videoElement || videoElement.paused || videoElement.seeking || videoElement.readyState < 3) return;
+        var leaderRate = p.rate || 1;
+        var expected = p.time + ((Date.now() - p.localAt) / 1000) * leaderRate;
+        var diff = expected - videoElement.currentTime; // + = gerideyim
+
+        clearTimeout(rateResetTimer);
+        rateResetTimer = setTimeout(stopRateCorrection, 3000); // güncelleme kesilirse normale dön
+
+        baseRate = leaderRate;
+        if (Math.abs(diff) > 0.5) {
+            isSyncing = true;
+            syncSeek(expected);
+            setTimeout(function () { isSyncing = false; }, 800);
+            setRate(baseRate);
+            rateCorrecting = true;
+        } else if (Math.abs(diff) < 0.005) {
+            setRate(baseRate);
+            rateCorrecting = true;
+        } else {
+            // Farkın yarısını her saniye kapat, en fazla %5 hız değişimi
+            var corr = Math.max(-0.05, Math.min(0.05, diff * 0.5));
+            setRate(baseRate * (1 + corr));
+            rateCorrecting = true;
+        }
+    }
+
+    // Her saniye: video oynuyorsa konumu raporla (başkansam sunucuya gider)
+    function reportPosition() {
+        if (!videoElement || videoElement.paused || videoElement.seeking) return;
+        var rep = {
+            time: videoElement.currentTime,
+            localAt: Date.now(),
+            rate: rateCorrecting ? baseRate : videoElement.playbackRate
+        };
+        if (isTopFrame) {
+            handlePositionReport(rep);
+        } else {
+            try { chrome.runtime.sendMessage({ type: 'YAKISHI_RELAY', payload: { type: 'YAKISHI_POSITION', data: rep } }); } catch (e) {}
+        }
+    }
+
+    function handlePositionReport(rep) {
+        if (!isTopFrame || !amLeader || !socket || !socket.connected || !myRoom || clockOffset === null) return;
+        socket.emit('leader-position', {
+            roomId: myRoom,
+            time: rep.time,
+            at: rep.localAt + clockOffset,
+            rate: rep.rate,
+            url: location.href
+        });
+    }
+
+    function onPositionUpdate(d) {
+        if (!isTopFrame || clockOffset === null || !d) return;
+        // Başkan başka bir sayfadaysa ona kilitlenme
+        if (normalizeUrl(d.url) !== normalizeUrl(location.href)) return;
+        var p = { time: d.time, localAt: d.at - clockOffset, rate: d.rate };
+        if (videoElement) {
+            applyLeaderPosition(p);
+        } else {
+            chrome.runtime.sendMessage({ type: 'YAKISHI_RELAY', payload: { type: 'YAKISHI_COMMAND', action: 'leaderPosition', p: p } });
         }
     }
 
@@ -399,6 +565,13 @@
                 if (socket) socket.emit('heartbeat', { roomId: myRoom, userName: myName });
             }, 25000);
 
+            // Saat eşitleme: bağlanınca 8 ölçüm, sonra her 20sn'de 3 ölçüm
+            clockSamples = [];
+            clockOffset = null;
+            runClockSync(8);
+            clearInterval(timeSyncInterval);
+            timeSyncInterval = setInterval(function () { runClockSync(3); }, 20000);
+
             //  zellik 6: Ping ölçümü   her 5sn'de bir latency ölç
             clearInterval(pingInterval);
             pingInterval = setInterval(function () {
@@ -422,21 +595,18 @@
 
         //     Senkronizasyon    
         socket.on('sync-update', function (data) {
+            // Olay gönderildiğinden beri geçen süreyi hesaba kat (ağ gecikmesi telafisi)
+            var elapsed = elapsedSince(data.at, data.serverNow);
             if (videoElement) {
-                isSyncing = true;
-                if (Math.abs(videoElement.currentTime - data.time) > 0.5) {
-                    videoElement.currentTime = data.time;
-                }
-                if (data.type === 'play') {
-                    videoElement.play().catch(console.error);
-                } else if (data.type === 'pause') {
-                    videoElement.pause();
-                }
-                setTimeout(function () { isSyncing = false; }, 300);
+                applySync(data.time, data.type, elapsed);
             } else {
-                chrome.runtime.sendMessage({ type: 'YAKISHI_RELAY', payload: { type: 'YAKISHI_COMMAND', action: 'forceSync', time: data.time, playState: data.type } });
+                chrome.runtime.sendMessage({ type: 'YAKISHI_RELAY', payload: { type: 'YAKISHI_COMMAND', action: 'forceSync', time: data.time, playState: data.type, elapsed: elapsed } });
             }
         });
+
+        //     Hassas senkron
+        socket.on('time-sync-reply', onTimeSyncReply);
+        socket.on('position-update', onPositionUpdate);
 
         //     Mesajlar    
         socket.on('receive-message', function (data) {
@@ -511,27 +681,23 @@
 
         //      zellik 1: Catch-up sync    
         socket.on('catch-up-sync', function (state) {
-            if (videoElement && state.time !== undefined) {
-                isSyncing = true;
-                if (Math.abs(videoElement.currentTime - state.time) > 3) {
-                    videoElement.currentTime = state.time;
+            if (!state || typeof state.time !== 'number') return;
+            var receivedAt = Date.now();
+            // Saat henüz ölçülmedi: sunucunun gönderdiği saatle geçen süreyi tahmin et
+            var baseElapsed = (typeof state.at === 'number' && typeof state.serverNow === 'number')
+                ? Math.max(0, (state.serverNow - state.at) + lastRtt / 2) / 1000
+                : 0;
+            function apply() {
+                var elapsed = baseElapsed + (Date.now() - receivedAt) / 1000;
+                if (state.type === 'play' && elapsed > 6 * 3600) return; // saçma değer
+                if (videoElement) {
+                    applySync(state.time, state.type === 'pause' ? 'pause' : (state.type === 'play' ? 'play' : 'seek'), elapsed);
+                } else {
+                    chrome.runtime.sendMessage({ type: 'YAKISHI_RELAY', payload: { type: 'YAKISHI_COMMAND', action: 'forceSync', time: state.time, playState: state.type, elapsed: elapsed } });
                 }
-                if (state.type === 'play') {
-                    videoElement.play().catch(function () {});
-                } else if (state.type === 'pause') {
-                    videoElement.pause();
-                }
-                setTimeout(function () { isSyncing = false; }, 500);
-            } else {
-                // Video henüz yüklenmemixse biraz bekle
-                setTimeout(function () {
-                    if (videoElement && state.time !== undefined) {
-                        isSyncing = true;
-                        if (Math.abs(videoElement.currentTime - state.time) > 3) videoElement.currentTime = state.time;
-                        setTimeout(function () { isSyncing = false; }, 300);
-                    }
-                }, 2000);
             }
+            if (videoElement) apply();
+            else setTimeout(apply, 2000); // Video henüz yüklenmemişse biraz bekle
         });
 
         // Session kaydet (chrome.storage yerine)
@@ -549,6 +715,9 @@
         }
         clearInterval(heartbeatInterval); heartbeatInterval = null;
         clearInterval(pingInterval); pingInterval = null;
+        clearInterval(timeSyncInterval); timeSyncInterval = null;
+        clockOffset = null;
+        stopRateCorrection();
         myName = '';
         myRoom = '';
         amLeader = false;
@@ -968,6 +1137,10 @@
                 if (urlTrackInterval) { clearInterval(urlTrackInterval); urlTrackInterval = null; }
                 // Ping interval'ı temizle
                 if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
+                // Senkron interval'larını temizle, hızı normale döndür
+                if (positionInterval) { clearInterval(positionInterval); positionInterval = null; }
+                if (timeSyncInterval) { clearInterval(timeSyncInterval); timeSyncInterval = null; }
+                stopRateCorrection();
                 // MutationObserver temizle
                 if (videoObserver) { videoObserver.disconnect(); videoObserver = null; }
                 // AudioContext kapat
@@ -991,9 +1164,11 @@
         
         // Cross-frame relay handlers
         if (msg.type === 'YAKISHI_VIDEO_EVENT' && isTopFrame) {
-            if (!isSyncing) emitSync(msg.action, msg.time);
+            if (!isSyncing) emitSync(msg.action, msg.time, msg.localAt);
             if (msg.action === 'play') emit('play-state-changed', { playing: true });
             else if (msg.action === 'pause') emit('play-state-changed', { playing: false });
+        } else if (msg.type === 'YAKISHI_POSITION' && isTopFrame) {
+            handlePositionReport(msg.data);
         } else if (msg.type === 'YAKISHI_TIME_UPDATE' && isTopFrame) {
             iframeVideoUrl = location.href;
             emit('time-update', msg.data);
@@ -1016,11 +1191,9 @@
             } else if (msg.action === 'toggleMute') {
                 videoElement.muted = !videoElement.muted;
             } else if (msg.action === 'forceSync') {
-                isSyncing = true;
-                if (Math.abs(videoElement.currentTime - msg.time) > 0.5) videoElement.currentTime = msg.time;
-                if (msg.playState === 'play') videoElement.play().catch(console.error);
-                else if (msg.playState === 'pause') videoElement.pause();
-                setTimeout(function () { isSyncing = false; }, 300);
+                applySync(msg.time, msg.playState, msg.elapsed || 0);
+            } else if (msg.action === 'leaderPosition') {
+                if (msg.p) applyLeaderPosition(msg.p);
             } else if (msg.action === 'drawLine') {
                 if (socket && myRoom) {
                     msg.data.roomId = myRoom;
@@ -1110,8 +1283,12 @@
         chrome.storage.onChanged.addListener(storageChangeHandler);
         if (document.body) watchForVideos();
         else document.addEventListener('DOMContentLoaded', watchForVideos);
-        
+
         trackUrlChanges();
+
+        // Hassas senkron: oynayan videonun konumunu her saniye raporla
+        if (positionInterval) clearInterval(positionInterval);
+        positionInterval = setInterval(reportPosition, 1000);
     }
 
     function checkPowerAndInit() {

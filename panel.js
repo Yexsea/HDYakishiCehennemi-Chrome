@@ -16,14 +16,30 @@
     var checkInterval = setInterval(function () {
         if (window.yakishi && document.body) {
             clearInterval(checkInterval);
-            initPanel();
+            waitForConnection();
         }
     }, 100);
 
     // Timeout: 15 saniye sonra vazgeç
     setTimeout(function () { clearInterval(checkInterval); }, 15000);
 
-    function initPanel() {
+    // Panel sadece odaya bağlı sekmede kurulur; diğer sekmelere hiçbir şey eklenmez
+    function waitForConnection() {
+        var started = false;
+        function start(detail) {
+            if (started) return;
+            started = true;
+            initPanel(detail);
+        }
+        var st = window.yakishi.getState ? window.yakishi.getState() : null;
+        if (st && st.connected) {
+            start({ name: st.myName, room: st.myRoom, silent: true });
+        } else {
+            window.yakishi.events.addEventListener('connected', function (e) { start(e.detail); });
+        }
+    }
+
+    function initPanel(initialConnected) {
         var yakishi = window.yakishi;
         var events = yakishi.events;
 
@@ -69,8 +85,10 @@
         // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
         var root = document.createElement('div');
         root.className = 'yakishi-root';
+        root.style.visibility = 'hidden';
         root.innerHTML = buildPanelHTML();
         shadow.appendChild(root);
+        cssLink.onload = cssLink.onerror = function () { root.style.visibility = ''; };
 
         // Referanslar
         var fab = root.querySelector('.yakishi-fab');
@@ -408,6 +426,13 @@
             clearTimeout(leaderPromptTimeout);
             leaderPromptTimeout = setTimeout(function () { box.classList.remove('show'); }, 30000);
         });
+
+        // Panel bir 'connected' olayıyla kurulduysa, o olayı panelin kendi dinleyicisine de uygula
+        if (initialConnected) {
+            setTimeout(function () {
+                events.dispatchEvent(new CustomEvent('connected', { detail: initialConnected }));
+            }, 0);
+        }
 
         events.addEventListener('play-state-changed', function (e) {
             btnPlay.innerHTML = e.detail.playing ? ICONS.pause : ICONS.play;
